@@ -20,6 +20,7 @@ router.post('/rc1/otp-reset-password', recruiterControle.sendOtpToResetPassword)
 router.post('/rc1/change-password-otp', recruiterControle.changePasswordByOtp);
 router.post('/rc1/change-password-token', validateToken, recruiterControle.changePassword);
 router.delete('/rc1/account', validateToken, recruiterControle.deleteAccount);
+
 // router.post('/rc1/send-otp-email', recruiterControle.resendOtp);
 // router.post('/rc1/resend-otp', recruiterControle.resendOtp);
 

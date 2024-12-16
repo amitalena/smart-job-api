@@ -254,6 +254,7 @@ exports.sendMultipleEmails = async (req, res) => {
 
     res.status(200).json({ message: 'Emails processed', status: emailStatus });
 };
+
 //------------------< DELETE CANDIDATE ACCOUNT >------------------//
 exports.deleteCandidateAccount = async (req, res) => {
     try {
