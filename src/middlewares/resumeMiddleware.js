@@ -6,9 +6,9 @@ const multer = require('multer');
 const storageMemo = multer.diskStorage({
     destination: function (req, file, cb) {
         if (file.mimetype === 'application/pdf') {
-            cb(null, 'resumes');
+            cb(null, './resumes');
         } else {
-            cb(null, 'uploads');
+            cb(null, './uploads');
         }
     },
     filename: function (req, file, cb) {

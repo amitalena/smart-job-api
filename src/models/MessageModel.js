@@ -1,26 +1,15 @@
+// models/MessageModel.js
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
-    from: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Recruiter', // Reference to the User model
-        required: true,
-    },
-    to: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Candidate', // Reference to the User model
-        required: true,
-    },
-    content: {
-        type: String,
-        required: true,
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
+    recruiterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Recruiter', required: true },
+    applicantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Applicant', required: true },
+    message: { type: String, required: true },
+    isRead: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now, },
+    updatedAt: { type: Date, default: Date.now, },
 });
 
-const Message = mongoose.model('Message', messageSchema);
+const MESSAGE = mongoose.model('Message', messageSchema);
 
-module.exports = Message;
+module.exports = MESSAGE;

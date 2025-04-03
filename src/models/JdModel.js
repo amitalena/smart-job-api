@@ -7,6 +7,11 @@ const JobDescriptionSchema = new mongoose.Schema({
         ref: "Admin",
         default: null
     },
+    category: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'JobCategory',
+        required: false,
+    },
     job_title: {
         type: String,
         required: true
@@ -70,8 +75,16 @@ const JobDescriptionSchema = new mongoose.Schema({
     job_description: {
         type: String,
         required: true
-    }
-}, { timestamps: true });
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
+});
 
 const JOBDESCRIPTION = mongoose.model('JobDescription', JobDescriptionSchema);
 module.exports = JOBDESCRIPTION;

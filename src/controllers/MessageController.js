@@ -1,127 +1,154 @@
-const Message = require('../models/MessageModel');
+const { sendRealTimeMessage } = require('../middlewares/messageMiddleware');
+const MESSAGE = require('../models/MessageModel');
 
-const sendMessage = async (req, res) => {
-    const from = req.user.id; // Extracted from token
-    const { to, content } = req.body;
+/**
+ * Send a message
+ */
+exports.sendMessage = async (req, res) => {
+    const recruiterId = req.user.id; // Extracted from token
+    const { applicantId, message } = req.body;
 
-    if (!to || !content) {
-        return res.status(400).json({ error: 'Recipient ID and content are required' });
+    // Validate request
+    if (!applicantId || !message) {
+        return res.status(400).json({
+            success: false,
+            error: 'Applicant ID and content are required',
+        });
     }
 
     try {
-        const message = new Message({ from, to, content });
-        await message.save();
+        // Save message in the database
+        const newMessage = await MESSAGE.create({
+            recruiterId,
+            applicantId,
+            message,
+        });
 
-        // Emit real-time message via Socket.IO using the `req.io` instance
-        if (req.io) {
-            req.io.emit('receive-message', message);
-        } else {
-            console.error('Socket.IO instance not found on req object.');
-        }
+        // Send real-time message
+        sendRealTimeMessage({
+            recruiterId,
+            applicantId,
+            message,
+        });
 
-        res.status(200).json({ success: true, message });
+        return res.status(200).json({
+            success: true,
+            message: 'Message sent successfully',
+            data: newMessage,
+        });
     } catch (err) {
         console.error('Error sending message:', err.message);
-        res.status(500).json({ error: 'Error sending message' });
+        res.status(500).json({ success: false, error: 'Error sending message' });
     }
 };
 
-const getMessages = async (req, res) => {
-    const userId = req.user.id; // Extracted from token
+// Get chat history
+exports.getChatHistory = async (req, res) => {
+    const { recruiterId, applicantId } = req.body;
+
+    if (!recruiterId || !applicantId) {
+        return res.status(400).json({ success: false, error: 'Both recruiterId and applicantId are required' });
+    }
 
     try {
-        // Fetch all messages where the authenticated user is the sender or recipient
-        const messages = await Message.find({
-            $or: [{ from: userId }, { to: userId }],
-        }).sort({ createdAt: -1 });
+        const messages = await MESSAGE.find({
+            $or: [
+                { recruiterId, applicantId },
+                { recruiterId: applicantId, applicantId: recruiterId },
+            ],
+        }).sort({ createdAt: 1 });
 
         res.status(200).json({ success: true, data: messages });
     } catch (error) {
-        console.error('Error fetching messages:', error.message);
-        res.status(500).json({ error: 'Failed to fetch messages' });
+        console.error('Error fetching chat history:', error.message);
+        res.status(500).json({ success: false, error: 'Error fetching chat history' });
     }
 };
-// Update a message
-const updateMessage = async (req, res) => {
-    const userId = req.user.id; // Extracted from token
-    const { messageId } = req.params;
-    const { content } = req.body;
 
-    if (!content) {
-        return res.status(400).json({ error: 'Content is required to update the message' });
+// Mark messages as read
+exports.markAsRead = async (req, res) => {
+    const { recruiterId, applicantId } = req.body;
+
+    try {
+        await MESSAGE.updateMany(
+            { recruiterId, applicantId, isRead: false },
+            { $set: { isRead: true } }
+        );
+
+        res.status(200).json({ success: true, message: 'Messages marked as read' });
+    } catch (error) {
+        console.error('Error marking messages as read:', error.message);
+        res.status(500).json({ success: false, error: 'Error marking messages as read' });
+    }
+};
+
+/**
+ * Update a message
+ */
+exports.updateMessage = async (req, res) => {
+    const recruiterId = req.user.id; // Extracted from token
+    const { messageId, updatedContent } = req.body;
+
+    if (!messageId || !updatedContent) {
+        return res.status(400).json({
+            success: false,
+            error: 'Message ID and updated content are required',
+        });
     }
 
     try {
-        // Find the message and verify the sender
-        const message = await Message.findOne({ _id: messageId, from: userId });
+        const message = await MESSAGE.findOneAndUpdate(
+            { _id: messageId, senderId: recruiterId }, // Only allow sender to update
+            { content: updatedContent },
+            { new: true }
+        );
 
         if (!message) {
-            return res.status(404).json({ error: 'Message not found or you are not authorized to update it' });
+            return res.status(404).json({ success: false, error: 'Message not found or not authorized' });
         }
 
-        // Update the message content
-        message.content = content;
-        await message.save();
-
-        res.status(200).json({ success: true, message });
+        return res.status(200).json({
+            success: true,
+            message: 'Message updated successfully',
+            data: message,
+        });
     } catch (err) {
         console.error('Error updating message:', err.message);
-        res.status(500).json({ error: 'Error updating message' });
+        res.status(500).json({ success: false, error: 'Error updating message' });
     }
 };
 
-// Delete a message
-const deleteMessage = async (req, res) => {
-    const userId = req.user.id; // Extracted from token
-    const { messageId } = req.params;
+/**
+ * Delete a message
+ */
+exports.deleteMessage = async (req, res) => {
+    const recruiterId = req.user.id; // Extracted from token
+    const { messageId } = req.body;
+
+    if (!messageId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Message ID is required',
+        });
+    }
 
     try {
-        // Find the message and verify the sender
-        const message = await Message.findOneAndDelete({ _id: messageId, from: userId });
+        const message = await MESSAGE.findOneAndDelete({
+            _id: messageId,
+            senderId: recruiterId, // Only allow sender to delete
+        });
 
         if (!message) {
-            return res.status(404).json({ error: 'Message not found or you are not authorized to delete it' });
+            return res.status(404).json({ success: false, error: 'Message not found or not authorized' });
         }
 
-        try {
-            // Emit real-time delete notification via Socket.IO
-            req.io.emit('delete-message', { messageId });
-        } catch (emitError) {
-            // Log the emit error but don't send it to the client since the delete succeeded
-            console.error('Socket.IO emit error:', emitError.message);
-        }
-
-        // Respond to the client after successful deletion
-        return res.status(200).json({ success: true, message: 'Message deleted successfully' });
+        return res.status(200).json({
+            success: true,
+            message: 'Message deleted successfully',
+        });
     } catch (err) {
         console.error('Error deleting message:', err.message);
-        return res.status(500).json({ error: 'Error deleting message' });
+        res.status(500).json({ success: false, error: 'Error deleting message' });
     }
 };
 
-
-// const getMessages = async (req, res) => {
-//     const from = req.user.id; // Extracted from token
-//     const { to } = req.params;
-
-//     if (!to) {
-//         return res.status(400).json({ error: 'Recipient ID is required' });
-//     }
-
-//     try {
-//         const messages = await Message.find({
-//             $or: [
-//                 { from, to },
-//                 { from: to, to: from },
-//             ],
-//         }).sort({ createdAt: 1 });
-
-//         res.status(200).json({ success: true, data: messages });
-//     } catch (error) {
-//         console.error('Error fetching messages:', error.message);
-//         res.status(500).json({ error: 'Failed to fetch messages' });
-//     }
-// };
-
-
-module.exports = { sendMessage, getMessages, updateMessage, deleteMessage };

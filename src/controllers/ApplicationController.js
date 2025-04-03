@@ -1,4 +1,4 @@
-const Application = require("../models/ApplicationModel1");
+const APPLICATION = require("../models/ApplicationModel");
 const Job = require("../models/JobModel"); // Assuming JobModel is defined
 const { sendNotification } = require("../utils/notification"); // Assuming this utility exists
 
@@ -13,7 +13,7 @@ const createApplication = async (req, res) => {
             return res.status(400).json({ message: "Job ID and status are required" });
         }
 
-        const application = await Application.create({ job_id, job_seeker_id, status });
+        const application = await APPLICATION.create({ job_id, job_seeker_id, status });
 
         res.status(201).json({
             message: "Application submitted successfully",
@@ -30,7 +30,7 @@ const trackApplication = async (req, res) => {
     try {
         const job_seeker_id = req.user?.id;
 
-        const applications = await Application.find({ job_seeker_id })
+        const applications = await APPLICATION.find({ job_seeker_id })
             .populate({
                 path: "job_id",
                 select: "title description location recruiter_id",
@@ -60,7 +60,7 @@ const submitApplication = async (req, res) => {
         }
 
         // Save the application to the database
-        const application = await Application.create({
+        const application = await APPLICATION.create({
             job_id: jobId,
             job_seeker_id,
             status: "Submitted",

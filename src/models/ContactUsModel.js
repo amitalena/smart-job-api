@@ -1,20 +1,24 @@
 const mongoose = require('mongoose')
 const contactUsSchema = new mongoose.Schema({
+    applicantId: {
+        type: mongoose.Schema.Types.ObjectId, ref: 'Applicant', required: true
+    },
     name: {
-        type: String,
-        required: true
+        first_name: {
+            type: String,
+            required: true
+        },
+        last_name: {
+            type: String,
+            required: true
+        }
     },
     email: {
         type: String,
-        required: true
-    },
-    address: {
-        type: String,
-        required: true
+        match: [/.+@.+\..+/, 'Please enter a valid email']
     },
     contact: {
-        type: Number,
-        required: true
+        type: String,
     },
     subject: {
         type: String,
@@ -23,13 +27,10 @@ const contactUsSchema = new mongoose.Schema({
     message: {
         type: String,
         required: true
-    }
-},
-    {
-        Timestamp: true
-    }
-)
-
+    },
+    submittedAt: { type: Date, default: Date.now },
+});
+contactUsSchema.index({ email: 1, submittedAt: 1 });
 
 const CONTACTUS = mongoose.model('Contactus', contactUsSchema)
 module.exports = CONTACTUS;

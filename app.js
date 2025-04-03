@@ -7,7 +7,7 @@ const config = require("./config.js");
 //------------------< ALL CONTROLLERS >------------------//
 const admin = require("./src/routes/AdminRoute.js");
 const recruiter = require("./src/routes/RecruiterRoute.js");
-const applicant = require("./src/routes/ApplicationRoute.js");
+const applicant = require("./src/routes/ApplicantRoute.js");
 const employee = require("./src/routes/EmployeeRoute.js");
 const candidate = require("./src/routes/CandidateRoute.js");
 const notification = require("./src/routes/NotificationRoute.js");
@@ -15,8 +15,11 @@ const jd = require("./src/routes/JdRoute.js");
 const messageRoutes = require("./src/routes/MessageRoute.js");
 const jobCategory = require("./src/routes/JobCategoriesRoute.js");
 const contactUs = require("./src/routes/ContactUsRoute.js");
+const applyJob = require('./src/routes/JobApplyRoute.js');
 const messageSocket = require("./src/sockets/messageSocket.js");
 const notificationSocket = require("./src/sockets/notificationSocket.js");
+const resumeRoutes = require('./src/routes/ResumeRoute.js');
+const customResumeRoute = require("./src/routes/ResumeCustomRoute.js")
 //------------------< DATABASE CONNECTION >------------------//
 require("./src/database/connection.js");
 
@@ -41,8 +44,11 @@ app.use(jd);
 app.use(jobCategory);
 app.use(contactUs);
 app.use(applicant);
+app.use(applyJob)
 app.use(notification);
-app.use("/api/messages", messageRoutes);
+app.use(messageRoutes);
+app.use(resumeRoutes);
+app.use(customResumeRoute)
 
 //------------------< HEALTH CHECK ROUTE >------------------//
 app.get("/", (req, res) => {
@@ -60,14 +66,22 @@ const server = http.createServer(app);
 //------------------< INTILIAZE SOCKET TO SERVER>------------------//
 const io = socketIo(server, {
     cors: {
-        origin: "http://localhost/3000",
-        methods: ["GET", "POST"],
+        origin: 'http://localhost:3000',
+        methods: ['GET', 'POST'],
+        allowedHeaders: ['my-custom-header'],
+        credentials: true,
     },
 });
 
+io.on('connection', (socket) => {
+    console.log('A user connected', socket.id);
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected', socket.id);
+    });
+});
 //------------------< SOCKET HANDLER >------------------//
 messageSocket(io);
-notificationSocket(io);
 notificationSocket(io);
 
 //------------------< START SERVER >------------------//

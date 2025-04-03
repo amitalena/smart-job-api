@@ -9,10 +9,11 @@ router.post('/admin/create', upload.single('profileImage'), adminControle.create
 router.post('/admin/login', adminControle.loginAdmin);
 router.put("/admin/profile-update", upload.single('profileImage'), validateToken, adminControle.updateProfile);
 router.get('/admin/profile', validateToken, adminControle.getProfile);
-
+router.delete('/admin/account', validateToken, adminControle.deleteAccount);
 //------------------< CREATE BY ADMIN >------------------//
 router.post('/admin/send-jd-emails', adminControle.sendMultipleEmails);
 router.get('/admin/recruiters/:adminId', adminControle.getRecruitersByAdmin);
 router.delete('/admin/recruiters/account', validateToken, adminControle.deleteRecruiterAccount);
 router.get('/admin/jobs/:adminId', adminControle.getJdByAdmin);
+
 module.exports = router;

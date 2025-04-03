@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 
 //------------------< AUTHORIZATION TOKEN >------------------//
 const validateToken = asyncHandler(async (req, res, next) => {
-    const authHeader = req.headers.authorization;
+    const authHeader = req.headers?.authorization;
     console.log("Autherization Header", authHeader)
 
     if (!authHeader || !authHeader.startsWith('Bearer')) {

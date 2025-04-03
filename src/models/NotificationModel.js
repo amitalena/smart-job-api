@@ -1,40 +1,44 @@
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
-    userId: {
+    recruiterId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Recruiter',
         default: null,
     },
-    candidateId: {
+    applicantId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Candidate',
+        ref: 'Applicant',
         required: true,
     },
     type: {
         type: String,
-        enum: ['job_update', 'interview_schedule', 'feedback'],
+        enum: ['Job_update', 'Interview_schedule', 'Feedback'],
         required: true
     },
     message: {
         type: String,
         required: true
     },
-    is_read: {
+    isRead: {
         type: Boolean,
         default: false
     },
-    created_at: {
-        type: Date,
-        default: Date.now
-    },
     replies: [
         {
-            userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Candidate', required: true },
-            reply_message: { type: String, required: true },
-            created_at: { type: Date, default: Date.now },
+            applicantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Applicant', required: true },
+            replyMessage: { type: String, required: true },
+            createdAt: { type: Date, default: Date.now },
         },
     ],
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
 });
 
 const Notification = mongoose.model('Notification', notificationSchema);

@@ -18,33 +18,43 @@ exports.createRecruiter = async (req, res) => {
 
     try {
         const {
-            first_name, last_name, role, mobile, education, gender, job_function, email, city, locality,
-            pin_code, state, years, months, skills, password
+            user_name, first_name, last_name, mobile, education, gender, job_function, email, city, locality,
+            pin_code, state, years, months, skills, password, description,
         } = req.body;
 
         // Validate input
-        if (!first_name || !last_name || !role || !mobile || !education || !gender || !job_function || !email || !city ||
-            !locality || !pin_code || !state || !years || !months || !skills || !password) {
+        if (!user_name || !first_name || !last_name || !mobile || !education || !gender || !job_function || !email || !city ||
+            !locality || !pin_code || !state || !years || !months || !skills || !password || !description) {
             return res.status(400).json({ message: "All fields are mandatory", status: false });
         }
 
         // Check if recruiter already exists
-        const existingRecruiter = await RECRUITER.findOne({ email });
+        const existingRecruiter = await RECRUITER.findOne({
+            $or: [
+                { email: email },
+                { mobile: mobile }
+            ]
+        });
         if (existingRecruiter) {
-            return res.status(400).json({ message: "Email is already registered", status: false, data: existingRecruiter });
+            let conflictField = existingRecruiter.email === email ? 'email' : 'mobile';
+            return res.status(400).json({
+                message: `Recruiter with the provided ${conflictField} already exists`,
+                status: false
+            });
         }
 
         // Create recruiter object
         recruiter = {
             userId: rc1Id,
+            user_name,
             name: { first_name, last_name },
             mobile,
-            role,
             gender,
             education,
             skills,
             email,
             job_function,
+            description,
             current_location: { city, locality, pin_code, state },
             experience: { years, months },
             password: await bcrypt.hash(password, 10),
@@ -106,6 +116,7 @@ exports.verifyOtp = async (req, res) => {
     }
 };
 
+
 //------------------< GET ALL RECRUITER >------------------//
 exports.getAllRecruiters = async (req, res) => {
     try {
@@ -146,8 +157,8 @@ exports.getRecruitersByAdmin = async (req, res) => {
 
 //------------------< LOGIN RECRUITER >------------------//
 exports.recruiterLogin = async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const { identifier, password } = req.body;
+    if (!identifier || !password) {
         return res.status(400).json({
             message: 'All fields are mandatory',
             status: false,
@@ -155,7 +166,7 @@ exports.recruiterLogin = async (req, res) => {
         });
     }
     try {
-        const recruiter = await RECRUITER.findOne({ email });
+        const recruiter = await RECRUITER.findOne({ $or: [{ email: identifier }, { mobile: identifier }], });
         if (recruiter.status !== 1) {
             return res.status(200).json({ message: "Account Blocked ! Contact to Admin", status: false, data: null });
         }
@@ -174,6 +185,7 @@ exports.recruiterLogin = async (req, res) => {
             user: {
                 user_name: recruiter.user_name,
                 email: recruiter.email,
+                mobile: recruiter.mobile,
                 id: recruiter._id,
             },
         }, config.ACCESS_TOKEN_SECRET, { expiresIn: '200m' });
@@ -183,6 +195,7 @@ exports.recruiterLogin = async (req, res) => {
             data: {
                 accessToken,
                 email: recruiter.email,
+                mobile: recruiter.mobile,
                 role: recruiter.role,
                 details: recruiter,
             },
@@ -234,8 +247,8 @@ exports.updatedProfile = async (req, res) => {
         }
 
         const {
-            first_name, last_name, role, mobile, education, gender, job_function, email, city, locality,
-            pin_code, state, years, months, skills, password,
+            user_name, first_name, last_name, mobile, education, job_function, email, city, locality,
+            pin_code, state, years, months, skills,
         } = req.body;
 
         const profileImage = req.file?.filename; // Optional chaining for file validation
@@ -248,11 +261,10 @@ exports.updatedProfile = async (req, res) => {
         }
 
         // Update fields if provided, otherwise retain existing values
+        recruiter.user_name = user_name || recruiter.user_name;
         recruiter.name.first_name = first_name || recruiter.name.first_name;
         recruiter.name.last_name = last_name || recruiter.name.last_name;
         recruiter.mobile = mobile || recruiter.mobile;
-        recruiter.role = role || recruiter.role;
-        recruiter.gender = gender || recruiter.gender;
         recruiter.education = education || recruiter.education;
         recruiter.skills = skills || recruiter.skills;
         recruiter.email = email || recruiter.email;
@@ -263,12 +275,6 @@ exports.updatedProfile = async (req, res) => {
         recruiter.current_location.state = state || recruiter.current_location.state;
         recruiter.experience.years = years || recruiter.experience.years;
         recruiter.experience.months = months || recruiter.experience.months;
-
-        // Hash the new password if provided
-        if (password) {
-            const saltRounds = 10;
-            recruiter.password = await bcrypt.hash(password, saltRounds);
-        }
 
         // Update profile image if provided
         if (profileImage) {
@@ -292,7 +298,68 @@ exports.updatedProfile = async (req, res) => {
         });
     }
 };
+//------------------< UPDATE RECRUITER >------------------//
+exports.updateRecruiter = async (req, res) => {
+    try {
+        const { id } = req.params; // Get recruiter ID from request user
+        if (!id) {
+            return res.status(400).json({ message: "Recruiter ID is missing", status: false });
+        }
 
+        const {
+            user_name, first_name, last_name, mobile, education, gender, job_function, email, city, locality,
+            pin_code, state, years, months, skills, description,
+        } = req.body;
+
+        const profileImage = req.file?.filename; // Optional chaining for file validation
+
+        // Fetch recruiter by ID
+        const recruiter = await RECRUITER.findById(id);
+
+        if (!recruiter) {
+            return res.status(404).json({ message: "Recruiter not found", status: false });
+        }
+
+        // Update fields if provided, otherwise retain existing values
+        recruiter.user_name = user_name || recruiter.user_name;
+        recruiter.name.first_name = first_name || recruiter.name.first_name;
+        recruiter.name.last_name = last_name || recruiter.name.last_name;
+        recruiter.mobile = mobile || recruiter.mobile;
+        recruiter.gender = gender || recruiter.gender;
+        recruiter.education = education || recruiter.education;
+        recruiter.skills = skills || recruiter.skills;
+        recruiter.email = email || recruiter.email;
+        recruiter.job_function = job_function || recruiter.job_function;
+        recruiter.current_location.city = city || recruiter.current_location.city;
+        recruiter.current_location.locality = locality || recruiter.current_location.locality;
+        recruiter.current_location.pin_code = pin_code || recruiter.current_location.pin_code;
+        recruiter.current_location.state = state || recruiter.current_location.state;
+        recruiter.experience.years = years || recruiter.experience.years;
+        recruiter.experience.months = months || recruiter.experience.months;
+        recruiter.description = description || recruiter.description;
+
+        // Update profile image if provided
+        if (profileImage) {
+            recruiter.profileImage = profileImage;
+        }
+
+        // Save the updated profile to the database
+        const updatedRecruiter = await recruiter.save();
+
+        res.status(200).json({
+            message: 'Recruiter updated successfully',
+            status: true,
+            data: updatedRecruiter, // Return the updated recruiter object
+        });
+    } catch (error) {
+        console.error('Error updating profile:', error.message);
+        res.status(500).json({
+            message: 'Internal server error',
+            status: false,
+            data: null,
+        });
+    }
+};
 //------------------< DELETE RECRUITER >------------------//
 exports.deleteRecruiter = async (req, res) => {
     const { id } = req.params;
@@ -488,34 +555,5 @@ exports.makePendingRecruiter = async (req, res) => {
     } catch (error) {
         console.error("Error in makeInactivestatus:", error);
         return res.status(500).json({ message: "Internal Server Error", status: false, data: null });
-    }
-};
-
-//------------------< DELETE ACCOUNT >------------------//
-exports.deleteAccount = async (req, res) => {
-    try {
-        const recruiterId = req.user?.id;
-        // Find and delete the candidate's account
-        const deletedRecruiter = await RECRUITER.findByIdAndDelete(recruiterId);
-
-        if (!deletedRecruiter) {
-            return res.status(404).json({
-                message: 'Recruiter not found',
-                status: false,
-                data: null,
-            });
-        }
-        res.status(200).json({
-            message: 'Account deleted successfully',
-            status: true,
-            data: null,
-        });
-    } catch (error) {
-        console.error('Error deleting account:', error.message);
-        res.status(500).json({
-            message: 'Internal server error',
-            status: false,
-            data: null,
-        });
     }
 };

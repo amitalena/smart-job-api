@@ -52,7 +52,7 @@ exports.uploadResume = async (req, res) => {
 
     const filePath = req.file.path; // Expecting multer to provide this
     const rc1Id = req.user?.id;
-
+    console.log(rc1Id)
     try {
         let dataBuffer;
         // Check if the file is stored on disk or in memory
@@ -75,7 +75,7 @@ exports.uploadResume = async (req, res) => {
         const contact = findContact(cleanedKeyValuePairs);
 
         const resumeData = {
-            userId: rc1Id,
+            recruiterId: rc1Id,
             name: cleanedKeyValuePairs[0] || 'N/A',
             designation: cleanedKeyValuePairs[1] || 'N/A',
             mail: email,
@@ -99,60 +99,78 @@ exports.uploadResume = async (req, res) => {
     }
 };
 
-exports.updateResume = async (req, res) => {
-    const { userId, name, designation, mail, contact } = req.body;
-    try {
-        const resume = await RESUME.findOne({ userId });
-        if (!resume) {
-            return res.status(404).json({ message: "Resume not found" });
-        }
+//------------------< UPDATE RESUME >------------------//
+// exports.updateResume = async (req, res) => {
+//     const { name, designation, mail, contact } = req.body;
 
-        // Update resume data
-        resume.name = name || resume.name;
-        resume.designation = designation || resume.designation;
-        resume.mail = mail || resume.mail;
-        resume.contact = contact || resume.contact;
+//     try {
+//         // Extract recruiterId from authenticated user's token
+//         const recruiterId = req.user?.id;
 
-        // Save updated data to the database
-        await resume.save();
+//         if (!recruiterId) {
+//             return res.status(401).json({ message: "Unauthorized access" });
+//         }
 
-        // Generate new PDF with updated data
-        const newFilePath = generatePDF(resume);
-        resume.pdfPath = newFilePath;
+//         const resume = await RESUME.findOne({ recruiterId });
+//         if (!resume) {
+//             return res.status(404).json({ message: "Resume not found" });
+//         }
 
-        // Return success response
-        res.status(200).json({ message: "Resume updated successfully", data: resume });
-    } catch (err) {
-        console.error('Error updating resume:', err);
-        res.status(500).json({ error: 'Internal Server Error', details: err.message });
-    }
-};
+//         // Update resume data
+//         resume.name = name || resume.name;
+//         resume.designation = designation || resume.designation;
+//         resume.mail = mail || resume.mail;
+//         resume.contact = contact || resume.contact;
+
+//         // Save updated data to the database
+//         await resume.save();
+
+//         // Generate new PDF with updated data (optional if needed)
+//         const newFilePath = generatePDF(resume);
+//         resume.pdfPath = newFilePath;
+
+//         // Return success response
+//         res.status(200).json({ message: "Resume updated successfully", data: resume });
+//     } catch (err) {
+//         console.error('Error updating resume:', err);
+//         res.status(500).json({ error: 'Internal Server Error', details: err.message });
+//     }
+// };
+
 
 //------------------< GET ALL RESUMES >------------------//
 exports.getAllResumes = async (req, res) => {
     try {
-        // Retrieve all resumes from the database
-        const resumes = await RESUME.find({});
-        // Check if there are any resumes found
-        if (resumes.length === 0) {
-            return res.status(404).json({ message: "No resumes found" });
+        // Populate recruiter details in the resume query
+        const resumes = await RESUME.find({})
+            .populate('recruiterId', 'name email')
+            .populate('data', 'key value'); // Select specific fields
+
+        if (!resumes || resumes.length === 0) {
+            return res.status(404).json({ message: "No resumes found", data: [] });
         }
-        res.status(200).json({ message: 'All Resumes retrieved successfully', resumes });
+
+        res.status(200).json({
+            message: 'All Resumes retrieved successfully',
+            data: resumes,
+        });
     } catch (err) {
         console.error('Error retrieving resumes:', err);
         res.status(500).json({ error: 'Internal Server Error', details: err.message });
     }
 };
+
+//------------------< DELETE BY RESUMES >------------------//
 exports.deletedById = async (req, res) => {
     const { id } = req.params;
     try {
         // Retrieve all resumes from the database
-        const resumes = await RESUME.deletedById(id);
+        const resumes = await RESUME.findByIdAndDelete(id);
         // Check if there are any resumes found
         if (resumes.length === 0) {
             return res.status(404).json({ message: "No resumes found" });
         }
-        res.status(200).json({ message: 'All Resumes retrieved successfully', resumes });
+        res.status(200).json({ message: 'Resume deleted successfully', resumes });
     } catch (err) {
         console.error('Error retrieving resumes:', err);
         res.status(500).json({ error: 'Internal Server Error', details: err.message });

@@ -16,27 +16,39 @@ const AdminSchema = new mongoose.Schema({
             required: true
         }
     },
+    mobile: {
+        type: String,
+        require: true,
+    },
     email: {
         type: String,
-        required: true
+        required: true,
+        match: [/.+@.+\..+/, 'Please enter a valid email']
     },
     password: {
         type: String,
         required: true
     },
-    confirm_password: String,
-    mobile: {
+    status: {
         type: Number,
-        required: true
+        default: 1
     },
     role: {
         type: Number,
         default: 1,
         require: true
     },
-    description: String,
-    profileImage: String
-}, { timestamps: true })
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
+    description: { type: String, default: null },
+    profileImage: { type: String, default: null }
+});
 
 const ADMIN = mongoose.model("Admin", AdminSchema);
 module.exports = ADMIN;

@@ -1,19 +1,23 @@
 const mongoose = require('mongoose');
 
 const jobCategorySchema = new mongoose.Schema({
-    experience: {
-        e_min: Number,
-        e_max: Number,
+    job_name: {
+        type: String,
+        required: true,
+        trim: true,
     },
-    salary: {
-        s_min: Number,
-        s_max: Number,
+    description: {
+        type: String,
+        trim: true,
     },
-    job_title: String,
-    location: String,
-    company_name: String,
-    createdAt: Date,
-    updatedAt: Date,
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
 });
 
 const JOBCATEGORIES = mongoose.model('JobCategory', jobCategorySchema);

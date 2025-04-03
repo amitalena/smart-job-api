@@ -12,14 +12,17 @@ const candidateSchema = new mongoose.Schema({
             required: true
         }
     },
+    gender: {
+        type: "string",
+        require: true
+    },
     email: {
         type: String,
         required: true,
-        unique: true,
         match: [/.+@.+\..+/, 'Please enter a valid email']
     },
     mobile: {
-        type: Number,
+        type: String,
         required: true
     },
     job_function: {
@@ -48,14 +51,24 @@ const candidateSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    profileImage: String,
-    candidateResume: {
+    profileImage: {
+        type: String
+    },
+    resume: {
         type: String,
         required: true
     },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
-}, { timestamps: true });
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
+});
 
 // Create model
 const CANDIDATE = mongoose.model('Candidate', candidateSchema);

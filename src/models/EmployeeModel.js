@@ -11,12 +11,17 @@ const emplopyeeSchema = new mongoose.Schema({
             require: true
         }
     },
-    email: {
+    gender: {
         type: String,
         require: true
     },
+    email: {
+        type: String,
+        require: true,
+        match: [/.+@.+\..+/, 'Please enter a valid email']
+    },
     mobile: {
-        type: Number,
+        type: String,
         require: true
     },
     job_function: {
@@ -41,12 +46,26 @@ const emplopyeeSchema = new mongoose.Schema({
         type: String,
         require: true
     },
-    description: String,
-    employeeImage: {
+    description: {
+        type: String
+    },
+    profileImage: {
         type: String,
         require: true
     },
-}, { timestamps: true })
+    resume: {
+        type: String,
+        required: true
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
+});
 
 const EMPLOYEE = mongoose.model('Employee', emplopyeeSchema);
 module.exports = EMPLOYEE;

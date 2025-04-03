@@ -7,6 +7,10 @@ const RecruiterSchema = new mongoose.Schema({
         ref: "Admin",
         default: null
     },
+    user_name: {
+        type: String,
+        require: true
+    },
     name: {
         first_name: {
             type: String,
@@ -28,20 +32,19 @@ const RecruiterSchema = new mongoose.Schema({
     email: {
         type: String,
         require: true,
+        match: [/.+@.+\..+/, 'Please enter a valid email']
     },
     mobile: {
-        type: Number,
+        type: String,
         require: true,
     },
     role: {
         type: Number,
         default: 2,
-        // require: true
     },
     status: {
         type: Number,
         default: 1,
-        // require: true
     },
     experience: {
         years: {
@@ -83,9 +86,17 @@ const RecruiterSchema = new mongoose.Schema({
         type: String,
         require: true
     },
-    description: String,
-    profileImage: String,
-}, { timestamps: true })
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
+    description: { type: String, default: null },
+    profileImage: { type: String, default: null }
+})
 
 const RECRUITER = mongoose.model('Recruiter', RecruiterSchema);
 module.exports = RECRUITER;

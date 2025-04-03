@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const jobCateControle = require('../controllers/JobCategoryController');
+const { createJobCategory, getJobCategories, updateJobCategory, deleteJobCategory, searchJobCategory, } = require('../controllers/JobCategoryController');
 
-router.get('/jd1/job-categories', jobCateControle.getJobByCategory);
-router.post('/jd1/job-categories', jobCateControle.postJobByCategories);
+// Routes
+router.post('/categories/create', createJobCategory);
+router.get('/categories/get-all-categories', getJobCategories);
+router.put('/categories/:id', updateJobCategory);
+router.get('/categories/search', searchJobCategory);
+router.delete('/categories/:id', deleteJobCategory);
 
 module.exports = router;

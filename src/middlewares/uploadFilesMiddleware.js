@@ -6,14 +6,14 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         if (file.fieldname === "profileImage") {
             cb(null, "./uploads");
-        } else if (file.fieldname === "candidateResume") {
+        } else if (file.fieldname === "resume") {
             cb(null, "./resumes");
         }
     },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    },
+    filename: function (req, file, cb) {
+        let ext = path.extname(file.originalname);
+        cb(null, Date.now() + ext);
+    }
 });
 
 // File filters
@@ -34,7 +34,7 @@ const upload = multer({
 // Middleware for handling multiple file uploads
 const uploadFiles = upload.fields([
     { name: "profileImage", maxCount: 1 },
-    { name: "candidateResume", maxCount: 1 },
+    { name: "resume", maxCount: 1 },
 ]);
 
 module.exports = uploadFiles;

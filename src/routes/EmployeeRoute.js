@@ -1,23 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const employeeControle = require('../controllers/EmployeeController');
-const multer = require("multer");
-const path = require("path");
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, './uploads');
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({ storage: storage });
-
+const uploadFiles = require("../middlewares/uploadFilesMiddleware");
 //------------------< ADMIN ROUTER >------------------//
-router.post('/employee/upload', upload.single('employeeImage'), employeeControle.employeeRegister);
-router.get('/employee/get-all-employee', employeeControle.employeeGetAll);
+router.post('/e1/register', uploadFiles, employeeControle.employeeRegister);
+router.get('/e1/all-employee', employeeControle.employeeGetAll);
+router.get('/e1/single/:id', employeeControle.getSingleEmp)
+router.put('/e1/update/:id', uploadFiles, employeeControle.updateEmployee)
+router.delete('/e1/delete/:id', employeeControle.deleteEmployee)
 
 module.exports = router;

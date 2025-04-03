@@ -4,25 +4,24 @@ const { sendRealTimeNotification } = require('../middlewares/notificationMiddlew
 // **Send a Notification**
 const sendNotification = async (req, res) => {
     try {
-        const { recipient_id, type, message } = req.body;
+        const { applicantId, type, message } = req.body;
         const recruiterId = req.user?.id;
 
-        if (!recipient_id || !type || !message) {
+        if (!applicantId || !type || !message) {
             return res.status(400).json({ error: 'Recipient ID, type, and message are required' });
         }
 
         const notification = await Notification.create({
-            userId: recruiterId,
-            candidateId: recipient_id,
+            recruiterId: recruiterId,
+            applicantId: applicantId,
             type,
             message,
         });
 
         if (sendRealTimeNotification) {
-            sendRealTimeNotification(recipient_id, {
+            sendRealTimeNotification(applicantId, {
                 type,
                 message,
-                created_at: notification.created_at,
             });
         }
 
@@ -40,7 +39,7 @@ const sendNotification = async (req, res) => {
 };
 
 // Get notifications by userId (recruiter)
-const getNotificationsByRecruiter = async (req, res) => {
+const getNotifications = async (req, res) => {
     try {
         const userId = req.user?.id;  // Assuming user is authenticated and their ID is in req.user
 
@@ -48,43 +47,13 @@ const getNotificationsByRecruiter = async (req, res) => {
             return res.status(400).json({ error: 'User not authenticated' });
         }
 
-        // Fetch notifications where the user is either the recruiter (userId) or the candidate (candidateId)
+        // Fetch notifications where the user is either the recruiter (userId) or the candidate (applicantId)
         const notifications = await Notification.find({
             $or: [
-                { userId },               // Notifications where the recruiter is the user
-                { candidateId: userId },   // Notifications where the candidate is the user
+                { recruiterId: userId },               // Notifications where the recruiter is the user
+                { applicantId: userId },   // Notifications where the candidate is the user
             ],
-        }).sort({ created_at: -1 });  // Sorting by creation date in descending order (most recent first)
-
-        return res.status(200).json({
-            message: 'Notifications retrieved successfully',
-            notifications,
-        });
-    } catch (error) {
-        console.error('Error fetching notifications:', error);
-        return res.status(500).json({
-            error: 'Failed to fetch notifications',
-            details: error.message,
-        });
-    }
-};
-
-// **Get Notifications for a Candidate**
-const getNotificationsByCandidate = async (req, res) => {
-    try {
-        const userId = req.user?.id;  // Assuming user is authenticated and their ID is in req.user
-
-        if (!userId) {
-            return res.status(400).json({ error: 'User not authenticated' });
-        }
-
-        // Fetch notifications where the user is either the recruiter (userId) or the candidate (candidateId)
-        const notifications = await Notification.find({
-            $or: [
-                { userId },               // Notifications where the recruiter is the user
-                { candidateId: userId },   // Notifications where the candidate is the user
-            ],
-        }).sort({ created_at: -1 });  // Sorting by creation date in descending order (most recent first)
+        }).sort({ createdAt: -1 });  // Sorting by creation date in descending order (most recent first)
 
         return res.status(200).json({
             message: 'Notifications retrieved successfully',
@@ -102,11 +71,11 @@ const getNotificationsByCandidate = async (req, res) => {
 //  reccruiter conversession bteween candidate
 const replyByRecruiter = async (req, res) => {
     try {
-        const { notificationId, reply_message } = req.body;
-        const recruiterId = req.user?.id; // Assuming recruiter's ID is extracted from authentication middleware
+        const { notificationId, replyMessage } = req.body;
+        const recruiterId = req.user?.id; // Assuming recruiter ID is extracted from authentication middleware
 
         // Validate input
-        if (!notificationId || !reply_message) {
+        if (!notificationId || !replyMessage) {
             return res.status(400).json({ success: false, message: 'Notification ID and reply message are required' });
         }
 
@@ -114,119 +83,132 @@ const replyByRecruiter = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Unauthorized access' });
         }
 
-        // Find the notification and add the reply
+        // Find and update notification with recruiter reply
         const notification = await Notification.findByIdAndUpdate(
             notificationId,
             {
                 $push: {
                     replies: {
-                        userId: recruiterId,
-                        reply_message,
-                        created_at: new Date(),
+                        applicantId: recruiterId, // Store recruiter ID in applicantId field to track replies
+                        replyMessage,
+                        createdAt: new Date(),
                     },
                 },
             },
-            { new: true } // Return the updated document
-        );
+            { new: true } // Return updated document
+        ).populate('replies.applicantId', 'name email'); // Populate reply author details
 
-        // If notification not found
+        // Check if notification exists
         if (!notification) {
             return res.status(404).json({ success: false, message: 'Notification not found' });
         }
-
         // Optionally, trigger a real-time notification for the candidate
         if (sendRealTimeNotification) {
-            sendRealTimeNotification(notification.candidateId, {
+            sendRealTimeNotification(notification.applicantId, {
                 type: 'reply',
-                message: reply_message,
-                created_at: new Date(),
+                message: replyMessage,
+                createdAt: new Date(),
             });
         }
-
-        // Response on success
         return res.status(200).json({
             success: true,
-            message: 'Reply added successfully',
+            message: 'Recruiter reply added successfully',
             data: notification,
         });
     } catch (error) {
-        console.error('Error adding reply:', error);
+        console.error('Error adding recruiter reply:', error);
         return res.status(500).json({
             success: false,
-            message: 'Failed to add reply',
+            message: 'Failed to add recruiter reply',
             error: error.message,
         });
     }
 };
 
 // **Reply to a Notification**
-const replyByCandidate = async (req, res) => {
+const replyByApplicant = async (req, res) => {
     try {
-        const { notificationId, reply_message } = req.body;
-        const candidateId = req.user?.id; // Ensure the candidate's ID is obtained from the token
+        const { notificationId, replyMessage } = req.body;
+        const applicantId = req.user?.id; // Assuming applicant ID is extracted from middleware
 
-        if (!notificationId || !reply_message) {
-            return res.status(400).json({ success: false, message: 'Notification ID and reply message are required' });
-        }
-
-        // Find the notification to ensure it exists and get the recruiter ID (userId)
-        const notification = await Notification.findById(notificationId);
-
-        if (!notification) {
-            return res.status(404).json({ success: false, message: 'Notification not found' });
-        }
-
-        // Add the candidate's reply to the notification's replies array
-        notification.replies.push({
-            userId: candidateId, // Candidate replying
-            reply_message,
-            created_at: new Date(),
-        });
-
-        // Save the updated notification
-        await notification.save();
-
-        // Send real-time notification if recruiter is connected
-        const socketId = connectedUsers.get(notification.userId.toString()); // Recruiter ID from the notification
-
-        if (socketId && sendRealTimeNotification) {
-            sendRealTimeNotification(socketId, {
-                type: 'candidate_reply',
-                message: reply_message,
-                notificationId: notification._id,
-                created_at: new Date(),
+        // Validate required fields
+        if (!notificationId || !replyMessage) {
+            return res.status(400).json({
+                success: false,
+                message: "Notification ID and reply message are required",
             });
-        } else {
-            console.log(`Recruiter with ID ${notification.userId} is not connected. Reply saved.`);
         }
 
+        if (!applicantId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized access",
+            });
+        }
+
+        // Update the notification with the applicant's reply
+        const notification = await Notification.findByIdAndUpdate(
+            notificationId,
+            {
+                $push: {
+                    replies: {
+                        applicantId,
+                        replyMessage,
+                        createdAt: new Date(),
+                    },
+                },
+            },
+            { new: true } // Return the updated notification
+        ).populate("replies.applicantId", "name email"); // Populate applicant details in replies
+
+        // Check if notification exists
+        if (!notification) {
+            return res.status(404).json({
+                success: false,
+                message: "Notification not found",
+            });
+        }
+
+        // Optionally, trigger a real-time notification for the candidate
+        if (sendRealTimeNotification) {
+            sendRealTimeNotification(notification.applicantId, {
+                type: 'reply',
+                message: replyMessage,
+                createdAt: new Date(),
+            });
+        }
+
+        // Respond with success
         return res.status(200).json({
             success: true,
-            message: 'Reply added successfully. Recruiter will be notified if online.',
+            message: "Applicant reply added successfully",
             data: notification,
         });
     } catch (error) {
-        console.error('Error adding reply:', error);
+        console.error("Error adding applicant reply:", error.message);
+
+        // General error response
         return res.status(500).json({
             success: false,
-            message: 'Failed to add reply',
+            message: "Failed to add applicant reply",
             error: error.message,
         });
     }
 };
 
+
 // **Mark a Notification as Read**
 const markAsRead = async (req, res) => {
-    const { notification_id } = req.params;
+    const { id } = req.params;
 
-    if (!notification_id) {
+    if (!id) {
         return res.status(400).json({ message: 'Notification ID is required' });
     }
 
     try {
         const updatedNotification = await Notification.findByIdAndUpdate(
-            notification_id,
-            { is_read: true },
+            id,
+            { isRead: true },
             { new: true, runValidators: true }
         );
 
@@ -251,7 +233,7 @@ const markAsRead = async (req, res) => {
 const updateNotification = async (req, res) => {
     try {
         const { notificationId } = req.params; // Notification ID from URL
-        const { type, message, reply_message } = req.body;
+        const { type, message, replyMessage } = req.body;
         const userId = req.user?.id; // Assuming the user ID is extracted from authentication middleware
 
         // Find the notification by ID
@@ -263,15 +245,15 @@ const updateNotification = async (req, res) => {
         // Update fields if provided
         if (type) notification.type = type;
         if (message) notification.message = message;
-        // Add a reply if `reply_message` is provided
-        if (reply_message) {
+        // Add a reply if `replyMessage` is provided
+        if (replyMessage) {
             if (!userId) {
                 return res.status(400).json({ message: "User ID is required for replies", Status: false });
             }
 
             notification.replies.push({
                 userId,
-                reply_message,
+                replyMessage,
             });
         }
 
@@ -316,10 +298,9 @@ const deleteNotification = async (req, res) => {
 
 module.exports = {
     sendNotification,
-    getNotificationsByRecruiter,
-    getNotificationsByCandidate,
+    getNotifications,
     replyByRecruiter,
-    replyByCandidate,
+    replyByApplicant,
     updateNotification,
     markAsRead,
     deleteNotification,

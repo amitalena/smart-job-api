@@ -6,17 +6,26 @@ const config = require('../../config')
 //------------------< REGISTER CANDIDATE >------------------//
 exports.candidateRegister = async (req, res) => {
     try {
-        const { first_name, last_name, email, mobile, job_function, current_location, years, months, key_skills, password } = req.body;
+        const { first_name, last_name, gender, email, mobile, job_function, current_location, years, months, key_skills, password } = req.body;
 
         // Validate required fields
-        if (!first_name || !last_name || !email || !mobile || !job_function || !current_location || !years || !months || !key_skills || !password) {
+        if (!first_name || !last_name || !gender || !email || !mobile || !job_function || !current_location || !years || !months || !key_skills || !password) {
             return res.status(400).json({ message: "All fields are mandatory", Status: false });
         }
 
         // Check if email is already registered
-        const existingCandidate = await CANDIDATE.findOne({ email });
+        const existingCandidate = await CANDIDATE.findOne({
+            $or: [
+                { email: email },
+                { mobile: mobile }
+            ]
+        });
         if (existingCandidate) {
-            return res.status(400).json({ message: "Email is already registered", Status: false });
+            let conflictField = existingCandidate.email === email ? 'email' : 'mobile';
+            return res.status(400).json({
+                message: `Candidate with the provided ${conflictField} already exists`,
+                status: false
+            });
         }
 
         // Hash the password
@@ -24,9 +33,9 @@ exports.candidateRegister = async (req, res) => {
 
         // Handle file uploads
         const profileImage = req.files?.profileImage?.[0]?.filename || null;
-        const candidateResume = req.files?.candidateResume?.[0]?.filename;
+        const resume = req.files?.resume?.[0]?.filename;
 
-        if (!candidateResume) {
+        if (!resume) {
             return res.status(400).json({ message: "Candidate resume is required", Status: false });
         }
 
@@ -38,6 +47,7 @@ exports.candidateRegister = async (req, res) => {
             },
             email,
             mobile,
+            gender,
             job_function,
             current_location,
             experience: {
@@ -47,7 +57,7 @@ exports.candidateRegister = async (req, res) => {
             key_skills,
             password: hashedPassword,
             profileImage,
-            candidateResume,
+            resume,
         });
 
         // Save candidate to the database
@@ -67,40 +77,56 @@ exports.candidateRegister = async (req, res) => {
 
 //------------------< LOGIN CANDIDATE >------------------//
 exports.candidateLogin = async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const { identifier, password } = req.body;
+    // Validate input
+    if (!identifier || !password) {
         return res.status(400).json({
-            message: 'All fields are mandatory',
+            message: 'Both identifier and password are required',
             status: false,
             data: null,
         });
     }
+
     try {
-        const candidate = await CANDIDATE.findOne({ email });
+        // Find candidate by email or mobile
+        const candidate = await CANDIDATE.findOne({
+            $or: [{ email: identifier }, { mobile: identifier }],
+        });
+
         if (!candidate) {
             return res.status(401).json({
-                message: 'Invalid Email or Password',
+                message: 'Invalid email or mobile',
                 status: false,
                 data: null,
             });
         }
+
+        // Compare password
         const isPasswordValid = await bcrypt.compare(password, candidate.password);
         if (!isPasswordValid) {
             return res.status(401).json({
-                message: 'Invalid Email or Password',
+                message: 'Invalid password',
                 status: false,
                 data: null,
             });
         }
-        const accessToken = jwt.sign({
-            user: {
-                user_name: candidate.user_name,
-                email: candidate.email,
-                id: candidate._id,
+
+        // Generate JWT token
+        const accessToken = jwt.sign(
+            {
+                user: {
+                    user_name: candidate.user_name,
+                    email: candidate.email,
+                    id: candidate._id,
+                },
             },
-        }, config.ACCESS_TOKEN_SECRET, { expiresIn: '200m' });
+            config.ACCESS_TOKEN_SECRET,
+            { expiresIn: '200m' }
+        );
+
+        // Respond with success
         res.status(200).json({
-            message: 'Login Successful',
+            message: 'Candidate login successful',
             status: true,
             data: {
                 accessToken,
@@ -123,18 +149,40 @@ exports.candidateLogin = async (req, res) => {
 exports.candidateGetAll = async (req, res) => {
     try {
         const candidate = await CANDIDATE.find({});
-        return res.status(200).json({ message: "Candidate All Data", data: candidate });
+        return res.status(200).json({ message: "All candidate retrieved successfull!", data: candidate });
     } catch (err) {
         console.error("Error fetching data:", err.message);
         return res.status(500).json({ message: "Internal server error", error: err.message });
     }
 };
 
+//------------------< CANDIDATE BY ID >------------------//
+exports.getCandidateById = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const candidate = await CANDIDATE.findById(id);
+        if (!candidate) {
+            return res.status(404).json({ message: "Candidate not found", Status: false });
+        }
+
+        return res.status(200).json({
+            message: "Single candidate fetched successfully",
+            Status: true,
+            data: candidate,
+        });
+    } catch (error) {
+        console.error("Error fetching candidate:", error);
+        return res.status(500).json({
+            message: "Internal server error",
+            Status: false,
+            error: error.message
+        });
+    }
+};
 //------------------< PROFILE CANDIDATE >------------------//
 exports.getCandidateProfile = async (req, res) => {
     try {
         const candidateId = req.user?.id;
-        console.log("candidate id", candidateId)
         const candidate = await CANDIDATE.findById(candidateId);
         if (!candidate) {
             return res.status(404).json({
@@ -162,57 +210,76 @@ exports.getCandidateProfile = async (req, res) => {
 exports.updateCandidateProfile = async (req, res) => {
     try {
         const candidateId = req.user?.id; // Assuming candidate ID is passed in the URL
-        const { first_name, last_name, email, mobile, job_function, current_location, years, months, key_skills } = req.body;
+        const { first_name, last_name, gender, email, mobile, job_function, current_location, years, months, key_skills, password } = req.body;
 
         // Find candidate by ID
         const candidate = await CANDIDATE.findById(candidateId);
         if (!candidate) {
             return res.status(404).json({ message: "Candidate not found", Status: false });
         }
-
-        // Update fields if provided
-        if (first_name) candidate.name.first_name = first_name;
-        if (last_name) candidate.name.last_name = last_name;
-        if (email) {
-            // Check if new email is already registered
-            const existingCandidate = await CANDIDATE.findOne({ email, _id: { $ne: candidateId } });
-            if (existingCandidate) {
-                return res.status(400).json({ message: "Email is already registered by another user", Status: false });
-            }
-            candidate.email = email;
-        }
-        if (mobile) candidate.mobile = mobile;
-        if (job_function) candidate.job_function = job_function;
-        if (current_location) candidate.current_location = current_location;
-        if (years) candidate.experience.years = years;
-        if (months) candidate.experience.months = months;
-        if (key_skills) candidate.key_skills = key_skills;
-
         // Handle file uploads
-        if (req.files?.profileImage?.[0]?.filename) {
-            candidate.profileImage = req.files.profileImage[0].filename;
-        }
-        if (req.files?.candidateResume?.[0]?.filename) {
-            candidate.candidateResume = req.files.candidateResume[0].filename;
+        const profileImage = req.files?.profileImage?.[0]?.filename || candidate.profileImage;
+        const resume = req.files?.resume?.[0]?.filename || candidate.resume;
+        // Update candidate fields
+        candidate.name.first_name = first_name || candidate.name.first_name;
+        candidate.name.last_name = last_name || candidate.name.last_name;
+        candidate.gender = gender || candidate.gender;
+        candidate.email = email || candidate.email;
+        candidate.mobile = mobile || candidate.mobile;
+        candidate.job_function = job_function || candidate.job_function;
+        candidate.current_location = current_location || candidate.current_location;
+        candidate.experience.years = years || candidate.experience.years;
+        candidate.experience.months = months || candidate.experience.months;
+        candidate.key_skills = key_skills || candidate.key_skills;
+
+        if (password) {
+            const saltRounds = 10;
+            candidate.password = await bcrypt.hash(password, saltRounds);
         }
 
+        // Update profile image if provided
+        if (profileImage) {
+            candidate.profileImage = profileImage;
+        }
+        // Update resume if a file is uploaded
+        if (resume) {
+            candidate.resume = resume;
+        }
         // Save updated candidate profile
         const updatedCandidate = await candidate.save();
 
         // Success response
-        return res.status(200).json({
-            message: "Candidate profile updated successfully!",
-            Status: true,
-            data: updatedCandidate,
-        });
+        return res.status(200).json({ message: "Candidate profile updated successfully!", Status: true, data: updatedCandidate, });
     } catch (error) {
         console.error("Error in updating candidate profile:", error.message);
         return res.status(500).json({ message: "Internal Server Error", Status: false });
     }
 };
 
-
 //------------------< DELETE CANDIDATE >------------------//
+exports.deleteCandidate = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const deletedCandidate = await CANDIDATE.findByIdAndDelete(id);
+        if (!deletedCandidate) {
+            return res.status(404).json({ message: "Candidate not found", Status: false });
+        }
+
+        return res.status(200).json({
+            message: "Candidate deleted successfully",
+            Status: true,
+        });
+    } catch (error) {
+        console.error("Error deleting condidate:", error);
+        return res.status(500).json({
+            message: "Internal server error",
+            Status: false,
+            error: error.message
+        });
+    }
+};
+
+//------------------< DELETE CANDIDATE ACCOUNT >------------------//
 exports.deleteCandidateAccount = async (req, res) => {
     try {
         const candidateId = req.user?.id;
@@ -244,76 +311,6 @@ exports.deleteCandidateAccount = async (req, res) => {
     }
 };
 
-//------------------< UPDATE CANDIDATE >------------------//
-exports.updateCandidate = async (req, res) => {
-    try {
-        const { id } = req.params; // Candidate ID from route parameters
-        const {
-            first_name,
-            last_name,
-            email,
-            mobile,
-            job_function,
-            current_location,
-            years,
-            months,
-            key_skills,
-            password,
-        } = req.body;
-
-        // Check if the candidate exists
-        const candidate = await CANDIDATE.findById(id);
-        if (!candidate) {
-            return res.status(404).json({ message: "Candidate not found", Status: false });
-        }
-
-        // Validate unique email if updating email
-        if (email && email !== candidate.email) {
-            const existingCandidate = await CANDIDATE.findOne({ email });
-            if (existingCandidate) {
-                return res.status(400).json({ message: "Email is already registered", Status: false });
-            }
-        }
-
-        // Hash new password if provided
-        let hashedPassword = candidate.password; // Keep the existing password
-        if (password) {
-            hashedPassword = await bcrypt.hash(password, 10);
-        }
-
-        // Update candidate fields
-        candidate.name.first_name = first_name || candidate.name.first_name;
-        candidate.name.last_name = last_name || candidate.name.last_name;
-        candidate.email = email || candidate.email;
-        candidate.mobile = mobile || candidate.mobile;
-        candidate.job_function = job_function || candidate.job_function;
-        candidate.current_location = current_location || candidate.current_location;
-        candidate.experience.years = years || candidate.experience.years;
-        candidate.experience.months = months || candidate.experience.months;
-        candidate.key_skills = key_skills || candidate.key_skills;
-        candidate.password = hashedPassword;
-
-        // Update candidateResume if a file is uploaded
-        if (req.file) {
-            candidate.candidateResume = req.file.filename;
-        }
-
-        // Save updated candidate to the database
-        const updatedCandidate = await candidate.save();
-
-        // Success response
-        return res.status(200).json({
-            message: "Candidate updated successfully!",
-            Status: true,
-            data: updatedCandidate,
-        });
-
-    } catch (error) {
-        console.error("Error in candidate update:", error.message);
-        return res.status(500).json({ message: "Internal Server Error", Status: false });
-    }
-};
-
 //------------------< GET ALL DELETE ACCOUNT >------------------//
 exports.getDeletedAccounts = async (req, res) => {
     try {
@@ -338,21 +335,5 @@ exports.getDeletedAccounts = async (req, res) => {
             status: false,
             data: null,
         });
-    }
-};
-
-//------------------< LOGIN CANDIDATE >------------------//
-exports.candidateLogout = (req, res) => {
-    try {
-        req.session.destroy((err) => {
-            if (err) {
-                console.error('Error destroying session:', err);
-                return res.status(500).json({ error: 'Server error' });
-            }
-            res.json({ message: 'Logout successfully...' });
-        });
-    } catch (error) {
-        console.error('Unexpected error:', error);
-        res.status(500).json({ error: 'Server error' });
     }
 };
